@@ -1,0 +1,66 @@
+name: Cypress Tests
+
+variables:
+  CI: true
+
+trigger:
+  - main
+
+jobs:
+  - job: test
+    timeoutInMinutes: 60
+    pool:
+      vmImage: "ubuntu-latest"
+      vmSize: 'Standard_DS2_v2'
+    steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          buildType: 'specific'
+          project: '2ae53aba-eb85-40d8-b982-b1089eaadebe'
+          definition: '2'
+          buildVersionToDownload: 'latestFromBranch'
+          branchName: 'refs/heads/master'
+          allowPartiallySucceededBuilds: true
+          artifactName: 'allure-report'
+          targetPath: '$(Pipeline.Workspace)/allure-report'
+        displayName: 'Download Allure Report Artifact'
+      - task: NodeTool@0
+        inputs:
+          versionSpec: "16.x"
+        displayName: "Install Node.js"
+
+      - script: |
+          npm ci
+        displayName: "Install dependencies"
+
+      - script: |
+          npm install cypress
+        displayName: "Install Cypress"
+
+      - script: |
+          npm install -g allure-commandline
+          npm run cypress:execution-allure
+        displayName: "Run Cypress tests"
+        continueOnError: True
+        
+      - script: |
+          dir
+          cp -r "/home/vsts/work/1/allure-report/history" "$SYSTEM_DEFAULTWORKINGDIRECTORY/allure-results/history"
+          cd allure-results
+          ls "$SYSTEM_DEFAULTWORKINGDIRECTORY/allure-results"
+        displayName: "allure historico"
+
+      - script: |
+          allure generate --clean
+        displayName: "allure Generate"
+
+      - task: PublishAllureReport@1
+        displayName: 'Publish Allure Report'
+        inputs:
+          reportDir: '$(System.DefaultWorkingDirectory)/allure-report'
+
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: "$(System.DefaultWorkingDirectory)/allure-report"
+          artifactName: "allure-report"
+        displayName: "Publish Allure Report"
